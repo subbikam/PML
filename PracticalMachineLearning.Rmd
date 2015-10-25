@@ -1,0 +1,101 @@
+---
+title: "Predictive Machine Learning Project"
+author: "Subhash"
+date: "Sunday, October 25, 2015"
+output: html_document
+---
+
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(rattle)
+```
+
+```{r}
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+
+Test <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+```
+
+Delete columns where entire column is NA
+```{r}
+training<-training[,colSums(is.na(training)) == 0]
+Test <-Test[,colSums(is.na(Test)) == 0]
+```
+
+Remove first 7 columns since they dont contain any useful info that require prediction
+
+```{r}
+training   <-training[,-c(1:7)]
+Test <-Test[,-c(1:7)]
+```
+
+Create partition within Training for cross validation
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.75, list=FALSE)
+sub_training <- training[inTrain,]
+sub_testing <- training[-inTrain,]
+```
+
+##Prediction using Rpart
+```{r}
+#model training
+model1<- rpart(classe~., data=sub_training, method="class")
+rpart.plot(model1)
+
+#prediction using the model
+prediction1 <- predict(model1, sub_testing, type="class")
+
+#Confusion matrix to test the prediction
+confusionMatrix(prediction1, sub_testing$classe)
+
+```
+
+```{r, echo=FALSE, results='hold'}
+gc()
+```
+We see tthat the accuracy is low. Now lets try with Random Forest model
+
+##Prediction using Random Forest
+```{r}
+#model training
+model2<- randomForest(classe~., data=sub_training, method="class")
+
+#prediction using the model
+prediction2 <- predict(model2, sub_testing, type="class")
+
+#Confusion matrix to test the prediction
+confusionMatrix(prediction2, sub_testing$classe)
+```
+As expected the Random Forest model has better accuracy as compared to rPart model. So, we chose Random Forest model to apply on the 20 Test samples
+
+##Apply Random Forest model on the 20 Test records
+```{r}
+predict_actual <- predict(model2, Test, type="class")
+
+#create an output table
+output <- data.frame(ProblemID = numeric(0), classe=numeric(0))
+p<-as.character(predict_actual)
+for (i in 1:length(p)){
+        output[i,1]<-i
+        output[i,2]<-p[i]     
+        
+}
+
+output
+
+```
+##Write files for submission
+```{r}
+# Write files for submission
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predict_actual)
